@@ -37,14 +37,15 @@ The following contracts were in scope:
 
 |  Identifier  | Title                        | Severity      | Fixed |
 | ------ | ---------------------------- | ------------- | ----- |
-| [C-01] | Non-stable tokens can be drained from the contract if an option is profitable by changing collateral | Critical |  |
+| [C-01] | Minter can mint options with incorrect collateral asset, leading the protocol to be drained | Critical |  |
 | [M-02] | Other entities interacting with the mint function can be DOSSed | Medium |  |
 | [M-03] | Changing amount of account access is open to a sandwich attack | Medium |  |
-| [L-04] | Assumption on resetting collateral will fail in cases where tokens do not support 0 transfers| Low |  |
+| [L-04] | Assumption on resetting collateral will fail in cases where tokens do not support 0 transfers | Low |  |
+| [I-05] | Naming convention of longStrike and shortStrike is subjected to perspective | Informational |  |
 
 # Detailed Findings
 
-## [C-01] Non-stable tokens can be drained from the contract if an option is profitable by changing collateral
+## [C-01] Minter can mint options with incorrect collateral asset, leading the protocol to be drained
 ### FullMarginEngine.sol
 
 The Engine has a single point of entry for all the possible actions provided:
@@ -179,19 +180,17 @@ The problem is that there is no check in place that links the required collatera
 Above would be a problem if we would reach a scenario where the seller has an option which requires collateralA of high value per unit while depositing collateralB of low value per unit.
 
 Here is one of the flows of how this can be achieved:
-- A seller uses the `execute()` function to perform 4 actions:
-  - Add CollateralETH
-  - Mint 1 CALL option (requires 1 ETH)
-  - Remove CollateralETH
-  - Add CollateralUSDC (amount: 1e6)
-- Since CALL requires the underlying it will calculate the requirement according to `unitAmount = _account.shortAmount;`. The seller has a deposit value of 1e6 which is more than enough to pass the health check.
+- A seller uses the `execute()` function to perform 4 actions (given ETH == 2000USDC):
+    - Add USDC as collateral (1e6)
+    - Mint a PUT option (with very high strike price like 1 million)
+    - Remove USDC collateral
+    - Add 1e-6 ETH as collateral. Collateral required calculation will be calculated in USDC term: 1 million * 1e6 = 1e12
+    (this passes the collateral check. The option now enables to withdraw "1 million - 2000" USDC from the protocol)
 
 The damage occures when the option holder's option is worth x amount of ETH and calls the settlement function. 
 This will trigger the Engine to send a x amount of ETH from the contract to the holder and deduct that from `FullMarginAccount.collateralAmount`.
 This essentially leaves the contract in a debt position (collateralETH of other sellers is send to the holder while deducting the amount from collateralUSDC of the seller).
-Furthermore, the seller could also act as a holder, essentially trading a fraction of USDC for ETH, which leaves a way to drain the contract. 
-
-The result is that the interest rates will be forced down for a full day. This attack can be repeated daily in order to keep the interest rate deflated.
+Mainly, making this issue a C-level, the seller could also act as a holder, essentially trading a fraction of ETH for USDC, which leaves a way to drain the contract. 
 
 ### Recommendation
 There are different ways to prevent this. I would suggest to add a check in `_isAccountAboveWater()` where it is checked if `optionCollateralRequirement == account.collateralId` which is also the most gass efficient way.
@@ -291,3 +290,17 @@ In this case the specific account would be stuck to the current `collateralId`.
 ### Recommendation
 Given the scenario, the following are to have in mind when considering a fix  1. low probablilty of above happening 2. there are 255 remaining accounts to be used.
 This can be fixed by checking the remaining collateral and resetting the collateralId if it's 0
+
+## [I-05] Naming convention of longStrike and shortStrike is subjected to perspective
+### Multiple contracts
+
+When dealing with options, the terms short and long strike are in it's core and is adapted in the contracts.
+When a minter has an CALL option with a long strike at x and sells it, it would be considered an CALL option of **short strike** at x at the perspective of the minter (seller).
+
+The contracts are written in such a way that `longStrike` and `shortStrike` are written in the perspective of the minter _and in the scenario of the option already sold_.
+Having the logic of the strikes inverted causes a lot of confusion when reading through the logic of the codebase and does not align with Grappa.sol.
+
+### Recommendation
+Invert the current naming of the strikes so that they represent the values of what's actually being minted instead of how they would be seen in the perspective of the seller.
+`longStrike -> shortStrike`
+`shortStrike -> longStrike`
