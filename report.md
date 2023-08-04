@@ -249,12 +249,11 @@ This leads to the typical allowance vulnerability where allowance is set to x am
 
 Simple example where this could lead to an issue: 
 - UserA has set UserB to 50 allowedExecutions
-- UserB gets hacked/ turns mailicous
-- UserA calls `setAccountAccess( ,0)`
-- UserB still performs the remaining actions (of the 50) before `setAccountAccess( ,0)` gets mined
+- UserA decides to add another 50 allowedExecutions and calls `setAccountAccess( ,100)`
+- UserB now had the oppertunity to perform 50 allowedExecutions before above call gets mined and another 100 after. This results in a total allowedExecutions of 150.
 
 ### Recommendation
-Reconstruct the function to an increase/ decrease flow instead of setting an x amount where 0 is a removal of access.
+Reconstruct the function to an increase/ decrease flow instead of setting an x amount.
 This can be achieved in the same as the decreaseAllowance/ increaseAllowance flow of OZ:
 https://docs.openzeppelin.com/contracts/2.x/api/token/erc20#ERC20-decreaseAllowance-address-uint256-
 
