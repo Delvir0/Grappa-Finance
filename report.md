@@ -245,15 +245,15 @@ The BaseEngine contract has the option to allow any other entity to perform acti
         emit AccountAuthorizationUpdate(maskedId, _account, _allowedExecutions);
     }
 ```
-This leads to the typical allowance vulnerability where allowance is set to x amount and changed to a new amount.
+This leads to the typical allowance vulnerability where allowance is set to x amount and increased to a new amount.
 
 Simple example where this could lead to an issue: 
 - UserA has set UserB to 50 allowedExecutions
 - UserA decides to add another 50 allowedExecutions and calls `setAccountAccess( ,100)`
-- UserB now had the oppertunity to perform 50 allowedExecutions before above call gets mined and another 100 after. This results in a total allowedExecutions of 150.
+- UserB now had the opportunity to perform 50 allowedExecutions before above call gets mined and another 100 after. This results in a total allowedExecutions of 150.
 
 ### Recommendation
-Reconstruct the function to an increase/ decrease flow instead of setting an x amount.
+Reconstruct the function to an increase/ decrease flow instead of setting a x amount.
 This can be achieved in the same as the decreaseAllowance/ increaseAllowance flow of OZ:
 https://docs.openzeppelin.com/contracts/2.x/api/token/erc20#ERC20-decreaseAllowance-address-uint256-
 
