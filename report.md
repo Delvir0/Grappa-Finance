@@ -71,73 +71,9 @@ function execute(address _subAccount, ActionArgs[] calldata actions) public over
 ```
 When minting or creating an option, each type (CALL, PUT, CALL_SPREAD, PUT_SPREAD) has each own requirement of underlying collateral. This could be either tokens like WETH, WBTC, ARB, UNI or stables.
 The collateral is used in order to pay the option holder (which has been sold to by the minter) if the option is worth anything at time of expiry.
-Collateral health is checked at the end of the `execute()` function: `if (!_isAccountAboveWater(_subAccount)) revert BM_AccountUnderwater();` which eventually leads to:
+Collateral health is checked at the end of the `execute()` function: `if (!_isAccountAboveWater(_subAccount)) revert BM_AccountUnderwater();` which eventually leads to `getCollateralRequirement()`.
+# It is important to note that when calculating the collateral, 
 
-```solidity
-function getCollateralRequirement(FullMarginDetail memory _account) internal pure returns (uint256 minCollat) {
-        // don't need collateral
-        if (_account.shortAmount == 0) return 0;
-
-        // amount with UNIT decimals
-        uint256 unitAmount;
-
-        if (_account.tokenType == TokenType.CALL) {
-            // call option must be collateralized with underlying
-            unitAmount = _account.shortAmount;
-        } else if (_account.tokenType == TokenType.CALL_SPREAD) { 
-            // if long strike <= short strike, all loss is covered, amount = 0
-            // only consider when long strike > short strike 
-            if (_account.longStrike > _account.shortStrike) { 
-            //note FullMarginEngine._getAccountPayout:  if (tokenType == TokenType.CALL_SPREAD && shortStrike > longStrike) 
-                // only call spread can be collateralized by both strike or underlying
-                if (_account.collateralizedWithStrike) { 
-                    // ex: 2000-4000 call spread with usdc collateral
-                    // return (longStrike - shortStrike) * amount / unit
-
-                    unchecked {
-                        unitAmount = (_account.longStrike - _account.shortStrike);
-                    }
-                    unitAmount = unitAmount * _account.shortAmount;
-                    unchecked {
-                        unitAmount = unitAmount / UNIT;
-                    }
-                } else {
-                    // ex: 2000-4000 call spread with eth collateral
-                    unchecked {
-                        unitAmount =
-                            (_account.longStrike - _account.shortStrike).mulDivUp(_account.shortAmount, _account.longStrike);
-                    }
-                }
-            }
-        } else if (_account.tokenType == TokenType.PUT) {
-            // put option must be collateralized with strike (USDC) asset
-            // unitAmount = shortStrike * amount / UNIT
-            unitAmount = _account.shortStrike * _account.shortAmount; 
-            unchecked {
-                unitAmount = unitAmount / UNIT;
-            }
-        } else if (_account.tokenType == TokenType.PUT_SPREAD) {
-            // put spread must be collateralized with strike (USDC) asset
-            // if long strike >= short strike, all loss is covered, amount = 0
-            // only consider when long strike < short strike
-            if (_account.longStrike < _account.shortStrike) {
-                // unitAmount = (shortStrike - longStrike) * amount / UNIT
-
-                unchecked {
-                    unitAmount = (_account.shortStrike - _account.longStrike);
-                }
-                unitAmount = unitAmount * _account.shortAmount;
-                unchecked {
-                    unitAmount = unitAmount / UNIT;
-                }
-            }
-        } else {
-            revert FM_UnsupportedTokenType();
-        }
-
-        return NumberUtil.convertDecimals(unitAmount, UNIT_DECIMALS, _account.collateralDecimals); 
-    }
-```
 The danger of single point of entries where we're allowed any combination of actions and where health is only checked at the end is it provides re-entrancy like vulnerabilities.
 An CALL options requires the underlying collateral to be the same asset representing the option. This is due to the fact that the price could increase Infinitely. The opposite is true when it's a PUT option, the max loss would be the price of the asset. Since the asset could drop to 0 and leave it worthless, the underlying needs to be (underlyingPrice * 1USDC).
 
