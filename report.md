@@ -1,7 +1,7 @@
 <table>
     <tr><th></th><th></th></tr>
     <tr>
-        <td><img src="[https://media-exp1.licdn.com/dms/image/C4E0BAQGsUEaZCJtT-w/company-logo_200_200/0/1625861473301?e=2147483647&v=beta&t=y8nFNaFXa7nkrgNV8-8giEb0m5s9cYOEwHSMJCC4a3s](https://www.grappa.finance/static/media/logo.a1e152c4e188ac3f75ad.png)" width="250" height="250" /></td>
+        <td><img src="https://www.grappa.finance/static/media/logo.a1e152c4e188ac3f75ad.png" width="250" height="250" /></td>
         <td>
             <h1>Grappa Finance - Full Collateral Engine report</h1>
             <h2>Minting options engine</h2>
