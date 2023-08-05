@@ -71,10 +71,11 @@ function execute(address _subAccount, ActionArgs[] calldata actions) public over
 ```
 When minting or creating an option, each type (CALL, PUT, CALL_SPREAD, PUT_SPREAD) has each own requirement of underlying collateral. This could be either tokens like WETH, WBTC, ARB, UNI or stables.
 The collateral is used in order to pay the option holder (which has been sold to by the minter) if the option is worth anything at time of expiry.
-Collateral health is checked at the end of the `execute()` function: `if (!_isAccountAboveWater(_subAccount)) revert BM_AccountUnderwater();` which eventually leads to `getCollateralRequirement()`.
-# It is important to note that when calculating the collateral, 
+Collateral health is checked at the end of the `execute()` function: `if (!_isAccountAboveWater(_subAccount)) revert BM_AccountUnderwater();` which eventually leads to `getCollateralRequirement()`.\
 
-The danger of single point of entries where we're allowed any combination of actions and where health is only checked at the end is it provides re-entrancy like vulnerabilities.
+It is important to note that when calculating the required collateral, the value (which is in 6 decimals) gets converted to the decimal value according to the stored `_account.collateralDecimals`.
+
+The danger in the single point of entry with only a check at the end is it opens the possebility to break the system before the check is performed.
 An CALL options requires the underlying collateral to be the same asset representing the option. This is due to the fact that the price could increase Infinitely. The opposite is true when it's a PUT option, the max loss would be the price of the asset. Since the asset could drop to 0 and leave it worthless, the underlying needs to be (underlyingPrice * 1USDC).
 
 
@@ -110,10 +111,8 @@ The accounting of adding and removing collateral is done in the following way:
         }
     }
 ```
-When settlement of the option token(s) is performed, the profit of the option holder is deducted from `FullMarginAccount.collateralAmount` of the seller (minter).
-
-The problem is that there is no check in place that links the required collateral type of an option token that has been minted with the current collateral of the seller.
-Above would be a problem if we would reach a scenario where the seller has an option which requires collateralA of high value per unit while depositing collateralB of low value per unit.
+The problem is that there is no check in place that links the required collateral type of an option token that has been minted with the current collateral of the seller. Meanining after minting we could change the deposited collateral type.
+Above would be a problem if we would reach a scenario where the seller has an option which requires collateralA of low decimal value while depositing collateralB of a high decimal value.
 
 Here is one of the flows of how this can be achieved:
 - A seller uses the `execute()` function to perform 4 actions (given ETH == 2000USDC):
@@ -121,12 +120,7 @@ Here is one of the flows of how this can be achieved:
     - Mint a PUT option (with very high strike price like 1 million)
     - Remove USDC collateral
     - Add 1e-6 ETH as collateral. Collateral required calculation will be calculated in USDC term: 1 million * 1e6 = 1e12
-    (this passes the collateral check. The option now enables to withdraw "1 million - 2000" USDC from the protocol)
-
-The damage occures when the option holder's option is worth x amount of ETH and calls the settlement function. 
-This will trigger the Engine to send a x amount of ETH from the contract to the holder and deduct that from `FullMarginAccount.collateralAmount`.
-This essentially leaves the contract in a debt position (collateralETH of other sellers is send to the holder while deducting the amount from collateralUSDC of the seller).
-Mainly, making this issue a C-level, the seller could also act as a holder, essentially trading a fraction of ETH for USDC, which leaves a way to drain the contract. 
+    (this passes the collateral check. At settlement the option now enables to withdraw "1 million - 2000" USDC from the protocol)
 
 ### Recommendation
 There are different ways to prevent this. I would suggest to add a check in `_isAccountAboveWater()` where it is checked if `optionCollateralRequirement == account.collateralId` which is also the most gass efficient way.
