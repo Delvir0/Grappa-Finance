@@ -35,13 +35,13 @@ The following contracts were in scope:
 
 # Summary of Findings
 
-|  Identifier  | Title                        | Severity      | Fixed |
-| ------ | ---------------------------- | ------------- | ----- |
-| [C-01] | Minter can mint options with incorrect collateral asset, leading the protocol to be drained | Critical |  |
-| [M-02] | Other entities interacting with the mint function can be DOSSed | Medium |  |
-| [M-03] | Changing amount of account access is open to a sandwich attack | Medium |  |
-| [L-04] | Assumption on resetting collateral will fail in cases where tokens do not support 0 transfers | Low |  |
-| [I-05] | Naming convention of longStrike and shortStrike is subjected to perspective | Informational |  |
+|  Identifier  | Title                        | Severity      | Status | Commit to fix |
+| ------ | ---------------------------- | ------------- | ----- | ----- | 
+| [C-01] | Minter can mint options with incorrect collateral asset, leading the protocol to be drained | Critical | Fixed |[b62d98d](https://github.com/grappafinance/full-collat-engine/commit/b62d98d1b0f3af03a444ed9ac9800619a194e71e)|
+| [M-02] | Other entities interacting with the mint function can be DOSSed | Medium | Fixed |[9f931a6](https://github.com/grappafinance/full-collat-engine/commit/9f931a6b568c3c9ba8d0dfeb80d9bddab9b248ef)|
+| [M-03] | Changing amount of account access is open to a sandwich attack | Medium | Acknowledged ||
+| [L-04] | Assumption on resetting collateral will fail in cases where tokens do not support 0 transfers | Low | Fixed |[e3a27c6](https://github.com/grappafinance/full-collat-engine/commit/e3a27c6a16289491a9ae5a51a7c0b321543514e7)|
+| [I-05] | Naming convention of longStrike and shortStrike is subjected to perspective | Informational | Acknowledged ||
 
 # Detailed Findings
 
@@ -125,6 +125,10 @@ Here is one of the flows of how this can be achieved:
 ### Recommendation
 There are different ways to prevent this. I would suggest to add a check in `_isAccountAboveWater()` where it is checked if `optionCollateralRequirement == account.collateralId` which is also the most gass efficient way.
 
+### Review
+This was fixed by adding an additonal check in `FullMarginLib.removeCollateral` which now also checks if `account.tokenId == 0` in order to reset the collateralId.
+Commit can be found [here](https://github.com/grappafinance/full-collat-engine/commit/b62d98d1b0f3af03a444ed9ac9800619a194e71e).
+
 ## [M-02] Other entities interacting with the mint function can be DOSSed
 ### FullMarginEngine.sol
 
@@ -160,6 +164,10 @@ The result is a possebility to damage an entity by making their service fail (mi
 I would like to recommend rethinking the need for the transfer of sub-accounts.
 Incase it's needed you could work with whitelists where a user is not able to send the details of a sub-account to sub-accounts of an other head-account unless it's whitelisted to do so.
 
+### Review
+This has been fixed by entirely removing the `FullMarginEngine.transferAccount` thus removing the attack vector.
+Commit can be found [here](https://github.com/grappafinance/full-collat-engine/commit/9f931a6b568c3c9ba8d0dfeb80d9bddab9b248ef).
+
 ## [M-03] Changing amount of account access is open to a sandwich attack
 ### BaseEngine.sol
 
@@ -187,6 +195,8 @@ Reconstruct the function to an increase/ decrease flow instead of setting a x am
 This can be achieved in the same as the decreaseAllowance/ increaseAllowance flow of OZ:
 https://docs.openzeppelin.com/contracts/2.x/api/token/erc20#ERC20-decreaseAllowance-address-uint256-
 
+### Review
+Acknowledged. Given that both parties are trusted, this will be noted in the protocol documentation to create awareness regarding the potential issue.
 
 ## [L-04] Assumption on resetting collateral will fail in cases where tokens do not support 0 transfers
 ### FullMarginLib.sol
@@ -218,7 +228,12 @@ In this case the specific account would be stuck to the current `collateralId`.
 
 ### Recommendation
 Given the scenario, the following are to have in mind when considering a fix  1. low probablilty of above happening 2. there are 255 remaining accounts to be used.
-This can be fixed by checking the remaining collateral and resetting the collateralId if it's 0
+This can be fixed by checking the remaining collateral and resetting the collateralId if it's 0.
+
+### Review
+This has been fixed by following the same check pattern of `FullMarginLib.removeCollateral`.
+Since the Engine requires full collateral, if remaining collateral amount == 0 there is no possible scenario that collateralId is being reset while there are any options remaining.
+Commit can be found [here](https://github.com/grappafinance/full-collat-engine/commit/e3a27c6a16289491a9ae5a51a7c0b321543514e7).
 
 ## [I-05] Naming convention of longStrike and shortStrike is subjected to perspective
 ### Multiple contracts
@@ -233,3 +248,6 @@ Having the logic of the strikes inverted causes a lot of confusion when reading 
 Invert the current naming of the strikes so that they represent the values of what's actually being minted instead of how they would be seen in the perspective of the seller.
 `longStrike -> shortStrike`
 `shortStrike -> longStrike`
+
+### Review
+Acknowledged. Given the sensitivity of the change across the whole codebase this will be done in the future with the required amount of time in order not to rush it.
